@@ -64,25 +64,6 @@
     </style>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBR8YLtRHYOBK381yao8KXGnzhFlm43SmE&sensor=false"></script>
     <script>
-function initialize() {
-  var fenway = new google.maps.LatLng(42.345573,-71.098326);
-  var mapOptions = {
-    center: fenway,
-    zoom: 14
-  };
-  map = new google.maps.Map(
-      document.getElementById('map-canvas'), mapOptions);
-  var panoramaOptions = {
-    position: fenway,
-    pov: {
-      heading: 34,
-      pitch: 10
-    }
-  };
-  panorama = new  google.maps.StreetViewPanorama(document.getElementById('pano'),panoramaOptions);
-  map.setStreetView(panorama);
-
-
 var headings = {
   'S'  : 180,
   'SSW': 202.5,
@@ -102,36 +83,64 @@ var headings = {
   'SSE': 157.5 
 }
 
+function initialize() {
+  var nullisland = new google.maps.LatLng(0,0);
 
-var busId = 0
+  map = new google.maps.Map(
+      document.getElementById('map-canvas'), {zoom: 14, center: nullisland});
+  var panoramaOptions = {
+    position: nullisland,
+    pov: {
+      heading: 34,
+      pitch: 10
+    }
+  };
+  panorama = new  google.maps.StreetViewPanorama(document.getElementById('pano'),panoramaOptions);
+  map.setStreetView(panorama);
 
+
+var activeBusId = 0
 var busData = {}
 var server = new EventSource('http://api.chab.us/buses/tail')
+
+function busOutOfService(bus) {
+  return bus.properties.route === 'U' || bus.properties.route === 'PI'
+}
 
 server.addEventListener('add', function (e) {
     var bus = JSON.parse(e.data)
     busData[bus.id] = bus
+
+    if (busOutOfService(bus)) { return }
+
+
     document.getElementById('buses').innerHTML += '<option id="bus'+bus.id+'" value="'+bus.id+'">' + bus.id + ' route ' + bus.properties.route + ' to ' + bus.properties.stop +'</option>'
+
+    // set the first in-service bus we find to the active bus
+    if (activeBusId && activeBusId !== bus.id) { return }
+    activeBusId = bus.id
+
     draw(bus)
   })
 
 server.addEventListener('remove', function (e) {
   var bus = JSON.parse(e.data)
-  if (busId === bus.id) { busId = 0}
+  if (activeBusId === bus.id) { activeBusId = 0}
   delete busData[bus.id]
   document.getElementById('buses').removeChild(document.getElementById('bus'+bus.id))
 })
 
 server.addEventListener('change', function (e) {
     var bus = JSON.parse(e.data)
+    if (busOutOfService(bus)) { return }
 
-    // always listen to the same bus
-    if (bus.properties.route === 'U' || bus.properties.route === 'PI' || (busId && busId !== bus.id)) { return }
-    busId = bus.id
+    // update the select dropdown
+    document.getElementById('bus'+bus.id).textContent = bus.id + ' route ' + bus.properties.route + ' to ' + bus.properties.stop
 
-    busData[bus.id] = bus
-
-    draw(bus)
+    if (activeBusId && activeBusId === bus.id) {
+      draw(bus)  
+    }
+    
   })
 
 
@@ -139,8 +148,7 @@ server.addEventListener('change', function (e) {
   function draw(bus) {
 
     var pos = new google.maps.LatLng(bus.geometry.coordinates[1], bus.geometry.coordinates[0])
-    
-    console.log(headings[bus.properties.heading], bus.properties.heading)  
+
     panorama.setPosition(pos)
     panorama.setPov({
           heading: headings[bus.properties.heading],
@@ -151,7 +159,6 @@ server.addEventListener('change', function (e) {
 
     document.getElementById('details').textContent = JSON.stringify(bus.properties,null,2)
 
-    console.log(bus.geometry, bus.properties.heading)
   }
 
   document.getElementById('realism').addEventListener('change', function () {
@@ -159,8 +166,8 @@ server.addEventListener('change', function (e) {
   })
 
   document.getElementById('buses').addEventListener('change', function () {
-    busId = document.getElementById('buses').value
-    draw(busData[busId])
+    activeBusId = document.getElementById('buses').value
+    draw(busData[activeBusId])
   })
 
 
