@@ -1,0 +1,203 @@
+
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Street View service</title>
+    <style>
+      html, body, #map-canvas {
+        height: 100%;
+        margin: 0px;
+        padding: 0px;
+        font-style: italic;
+        font-family: impact, sans-serif;
+      }
+
+      h1{ 
+
+        text-align: center;
+      }
+
+      #map-canvas{
+        position: relative;
+        z-index: 9999;
+        width: 400px;
+      }
+
+      #controlpanel {
+        position:absolute;
+        width: 400px;
+        right: 0;
+        top: 0;
+      }
+
+      #controlpanel > div {
+        padding: 5px;
+      }
+
+      #details {
+        white-space: pre;
+      }
+
+      .wrap {
+        position: relative;
+        width: 800px;
+        height: 352px;
+        margin: auto;
+      }
+
+      #cockpit{
+        background: url('cockpit.png') no-repeat scroll 0% 0% transparent;
+        position: absolute;
+        z-index: 8888;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 100%;
+        opacity: .8;
+      }
+
+      #pano {
+        height: 100%;
+      }
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=false"></script>
+    <script>
+function initialize() {
+  var fenway = new google.maps.LatLng(42.345573,-71.098326);
+  var mapOptions = {
+    center: fenway,
+    zoom: 14
+  };
+  map = new google.maps.Map(
+      document.getElementById('map-canvas'), mapOptions);
+  var panoramaOptions = {
+    position: fenway,
+    pov: {
+      heading: 34,
+      pitch: 10
+    }
+  };
+  panorama = new  google.maps.StreetViewPanorama(document.getElementById('pano'),panoramaOptions);
+  map.setStreetView(panorama);
+
+
+var headings = {
+  'S'  : 180,
+  'SSW': 202.5,
+  'SW' : 225,
+  'WSW': 247.5,
+  'W'  : 270,
+  'WNW': 292.5,
+  'NW' : 315,
+  'NNW': 337.5,
+  'N'  : 0,
+  'NNE': 22.5,
+  'NE' : 45,
+  'ENE': 67.5,
+  'E'  : 90,
+  'ESE': 112.5,
+  'SE' : 135,
+  'SSE': 157.5 
+}
+
+
+var busId = 0
+
+var busData = {}
+var server = new EventSource('http://api.chab.us/buses/tail')
+
+server.addEventListener('add', function (e) {
+    var bus = JSON.parse(e.data)
+    busData[bus.id] = bus
+    document.getElementById('buses').innerHTML += '<option id="bus'+bus.id+'">' + bus.id + '</option>'
+    draw(bus)
+  })
+
+server.addEventListener('remove', function (e) {
+  var bus = JSON.parse(e.data)
+  if (busId === bus.id) { busId = 0}
+  delete busData[bus.id]
+  document.getElementById('buses').removeChild(document.getElementById('bus'+bus.id))
+})
+
+server.addEventListener('change', function (e) {
+    var bus = JSON.parse(e.data)
+
+    // always listen to the same bus
+    if (bus.properties.route === 'U' || bus.properties.route === 'PI' || (busId && busId !== bus.id)) { return }
+    busId = bus.id
+
+    busData[bus.id] = bus
+
+    draw(bus)
+  })
+
+
+
+  function draw(bus) {
+
+    var pos = new google.maps.LatLng(bus.geometry.coordinates[1], bus.geometry.coordinates[0])
+    
+    console.log(headings[bus.properties.heading], bus.properties.heading)  
+    panorama.setPosition(pos)
+    panorama.setPov({
+          heading: headings[bus.properties.heading],
+          pitch: 10
+        })
+  
+    map.panTo(pos)
+
+    document.getElementById('details').textContent = JSON.stringify(bus.properties,null,2)
+
+    console.log(bus.geometry, bus.properties.heading)
+  }
+
+  document.getElementById('realism').addEventListener('change', function () {
+    document.getElementById('cockpit').style.opacity = document.getElementById('realism').value
+  })
+
+  document.getElementById('buses').addEventListener('change', function () {
+    busId = document.getElementById('buses').value
+    draw(busData[busId])
+  })
+
+
+}
+
+google.maps.event.addDomListener(window, 'load', initialize);
+
+    </script>
+  </head>
+  <body>
+    <h1>Chattanooga Bus Driver Sim 2000</h1>
+    
+    <div class="wrap">
+      <div id="pano"></div>
+      <div id="cockpit"></div>
+    </div>
+
+    <div class="wrap">
+      <div id="map-canvas"></div>
+      <div id="controlpanel">
+        <div>
+          Bus <select id="buses"></select>
+        </div>
+        <div>
+          Realism <input type="range" id="realism" min="0" max="1" step=".1" value=".8"/>
+        </div>
+        <div>
+          Details
+          <div id="details"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+
+
+
+    </script>
+  </body>
+</html>
+
