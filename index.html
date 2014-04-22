@@ -154,6 +154,9 @@ server.addEventListener('change', function (e) {
           heading: headings[bus.properties.heading],
           pitch: 10
         })
+
+    // prevent greyness
+    panorama.setVisible(true)
   
     map.panTo(pos)
 
